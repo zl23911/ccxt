@@ -52,8 +52,8 @@ class zbg(Exchange):
             },
             'urls': {
                 'logo': 'https://www.zbg.com/src/images/logo.png',
-                'api': 'http://179.zbg.com',
-                'publicapi': 'http://179kline.zbg.com',
+                'api': 'https://www.zbg.com',
+                'publicapi': 'https://kline.zbg.com',
                 'www': 'https://www.zbg.com',
                 'doc': 'https://www.zbg.com/help/restApi',
                 'fees': 'https://www.zbg.com/help/rate',
@@ -367,7 +367,8 @@ class zbg(Exchange):
             'fee': None,
         }
 
-    def parse_order_status(self, status):
+    @staticmethod
+    def parse_order_status(status):
         if status == 0 or status == 3:
             return 'open'
         elif status == 2:
