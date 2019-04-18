@@ -19,14 +19,7 @@ Current feature list:
 - an out of the box unified API that is extremely easy to integrate
 - works in Node 7.6+, Python 2 and 3, PHP 5.4+, and web browsers
 
-## Sponsored Promotion
 
-[![https://www.coss.io](https://user-images.githubusercontent.com/1294454/49981835-f497b780-ff6a-11e8-8377-03c31cb8e402.gif)](https://www.coss.io)
-
-## Certified Cryptocurrency Exchanges
-
-                                 |
-|[![zb](https://user-images.githubusercontent.com/1294454/32859187-cd5214f0-ca5e-11e7-967d-96568e2e2bd1.jpg)](https://vip.zb.com/user/register?recommendCode=bn070u)                          | zb                 | [ZB](https://vip.zb.com/user/register?recommendCode=bn070u)                          | 1     | [API](https://www.zb.com/i/developer)                                                            |                                                                                                                             | China                                   |
 
 The list above is updated frequently, new crypto markets, exchanges, bug fixes, and API endpoints are introduced on a regular basis. See the [Manual](https://github.com/ccxt/ccxt/wiki) for more details. If you can't find a cryptocurrency exchange in the list above and want it to be added, post a link to it by opening an issue here on GitHub or send us an email.
 
