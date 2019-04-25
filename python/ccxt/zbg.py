@@ -52,7 +52,9 @@ class zbg(Exchange):
             },
             'urls': {
                 'logo': 'https://www.zbg.com/src/images/logo.png',
+                # 'api': 'http://179.zbg.com',
                 'api': 'https://www.zbg.com',
+                # 'publicapi': 'http://179kline.zbg.com',
                 'publicapi': 'https://kline.zbg.com',
                 'www': 'https://www.zbg.com',
                 'doc': 'https://www.zbg.com/help/restApi',
@@ -75,6 +77,8 @@ class zbg(Exchange):
                         'exchange/entrust/controller/website/EntrustController/getEntrustById',
                         'exchange/entrust/controller/website/EntrustController/getUserEntrustList',
                         'exchange/entrust/controller/website/EntrustController/batchCancelEntrustByMarketId',
+                        'exchange/entrust/controller/website/EntrustController/getUserEntrustRecordFromCache',
+                        'exchange/entrust/controller/website/EntrustController/getUserEntrustRecordFromCacheWithPage',
                     ],
                     'post': [
                         'exchange/fund/controller/website/fundcontroller/findbypage',
@@ -439,6 +443,36 @@ class zbg(Exchange):
         success = results['resMsg']
         returnVal = {'info': results, 'success': success['message']}
         return returnVal
+
+    def get_user_entrust_from_cache(self, symbol):
+        """
+            查询用户正在委托的记录，默认返回20跳数据
+        """
+        if symbol is None:
+            raise ExchangeError(self.id + 'get_user_enturst_from_cache requires a symbol parameter')
+
+        self.load_markets()
+        params = {
+            'marketId': self.market_id(symbol.upper()),
+        }
+
+        return self.private_get_exchange_entrust_controller_website_entrustcontroller_getuserentrustrecordfromcache(params)
+
+    def get_user_entrust_from_cache_with_page(self, symbol, page_size=20, page_num=1):
+        """
+            查询用户正在委托的记录
+        """
+        if symbol is None:
+            raise ExchangeError(self.id + 'get_user_enturst_from_cache requires a symbol parameter')
+
+        self.load_markets()
+        params = {
+            'marketId': self.market_id(symbol.upper()),
+            'pageIndex': page_num,
+            'pageSize': page_size,
+        }
+
+        return self.private_get_exchange_entrust_controller_website_entrustcontroller_getuserentrustrecordfromcachewithpage(params)
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         if api == 'public':

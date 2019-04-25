@@ -3,9 +3,13 @@ import pandas as pd
 import ccxt
 
 if __name__ == '__main__':
+
     zbg = ccxt.zbg()
-    zbg.apiKey = '7ljSc36ADq47ljSc36ADq5'
-    zbg.secret = '7d939853803e90978fb3e52be744d19d'
+    # zbg.apiKey = '7ljSc36ADq47ljSc36ADq5'
+    # zbg.secret = '7d939853803e90978fb3e52be744d19d'
+    zbg.apiKey = '7hGKPJ0uLAW7hGKPJ0uLAX'
+    zbg.secret = 'a1bb47715b7727715e5a1dc90788a436'
+
     # print(zbg.fetch_markets())
 
     # print(zbg.fetch_balance())
@@ -19,10 +23,15 @@ if __name__ == '__main__':
     # print(zbg.fetch_ohlcv(symbol='btc/usdt', timeframe='1h'))
 
     # print(zbg.fetch_order(id='E6518698817490001920', symbol='ZT/USDT'))
+    # print(zbg.fetch_order(id='E6518698817490001920', symbol='ZT/USDT'))
 
-    print(zbg.fetch_orders(symbol='ZT/USDT', since=1548415379921))
+    print(zbg.get_user_entrust_from_cache_with_page("ZT/USDT", page_size=2))
 
-    # add_result = zbg.create_order("ZT/USDT", '', 'buy', 100, 1.2)
+    # print(zbg.fetch_orders(symbol='ZT/USDT', since=1548415379921))
+
+    # add_result = zbg.create_order("DAG/ZT", '', 'buy', 1, 0.098, {'magnification': 100})
+    # add_result = zbg.create_order("ZT/USDT", '', 'buy', 1000, 0.093, {'magnification': 0.1})
+
     # print(add_result)
     # time.sleep(1)
     # print(zbg.cancel_order(add_result['id'], "ZT/USDT"))
