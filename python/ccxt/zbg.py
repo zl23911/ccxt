@@ -31,6 +31,11 @@ class zbg(Exchange):
                 'fetchOrder': True,
                 'fetchOrders': True,
                 'fetchCurrencies': True,
+                'cancelOrders': True,
+                'fetchClosedOrders': True,
+                'fetchOpenOrders': True,
+                'fetchOrderBook': True,
+                'fetchTickers': True,
             },
             'timeframes': {
                 '1m': '1min',
@@ -77,13 +82,15 @@ class zbg(Exchange):
                         'exchange/entrust/controller/website/EntrustController/getEntrustById',
                         'exchange/entrust/controller/website/EntrustController/getUserEntrustList',
                         'exchange/entrust/controller/website/EntrustController/batchCancelEntrustByMarketId',
-                        'exchange/entrust/controller/website/EntrustController/getUserEntrustRecordFromCache',
-                        'exchange/entrust/controller/website/EntrustController/getUserEntrustRecordFromCacheWithPage',
+                        'exchange/entrust/controller/website/entrustcontroller/getuserentrustrecordfromcache',
+                        'exchange/entrust/controller/website/entrustcontroller/getuserentrustrecordfromcachewithpage',
+                        'exchange/activity/controller/gamecontroller/gettransactionpage',
                     ],
                     'post': [
                         'exchange/fund/controller/website/fundcontroller/findbypage',
                         'exchange/entrust/controller/website/EntrustController/addEntrust',
                         'exchange/entrust/controller/website/EntrustController/cancelEntrust',
+                        'exchange/entrust/controller/website/entrustcontroller/batchcancelentrust',
                     ],
                 },
             },
@@ -128,11 +135,66 @@ class zbg(Exchange):
             },
         })
 
+    def create_order(self, symbol, type, side, amount, price=None, params={}):
+        self.load_markets()
+
+        request = {
+            'marketId': self.market_id(symbol.upper()),
+            'price': price,
+            'amount': amount,
+            'rangeType': 0,
+            'type': 1 if 'buy' == side else 0,
+        }
+
+        response = self.private_post_exchange_entrust_controller_website_entrustcontroller_addentrust(self.extend(request, params))
+        data = response['datas']
+        return {
+            'info': response,
+            'id': self.safe_string(data, 'entrustId'),
+            'price': price,
+            'amount': amount,
+            'side': 1 if side == 'buy' else 0,
+        }
+
+    def cancel_order(self, id, symbol=None, params={}):
+        """
+            取消订单，zbg取消订单，marketId是必须传的，所以symbol不能为空
+        """
+        if symbol is None:
+            raise ExchangeError(self.id + 'cancel_order requires a symbol parameter')
+
+        self.load_markets()
+        request = {
+            'entrustId': id,
+            'marketId': self.market_id(symbol.upper()),
+        }
+
+        results = self.private_post_exchange_entrust_controller_website_entrustcontroller_cancelentrust(self.extend(request, params))
+        success = results['resMsg']
+        returnVal = {'info': results, 'success': success['message']}
+        return returnVal
+
+    def cancel_orders(self, symbol, *entrust_ids):
+        """
+            批量取消订单，zbg取消订单，marketId是必须传的，所以symbol不能为空
+        """
+        if symbol is None:
+            raise ExchangeError(self.id + 'cancel_orders requires a symbol parameter')
+
+        self.load_markets()
+        request = {
+            'entrustIds': entrust_ids,
+            'marketId': self.market_id(symbol.upper()),
+        }
+
+        results = self.private_post_exchange_entrust_controller_website_entrustcontroller_batchcancelentrust(request)
+        success = results['resMsg']
+        return {'info': results, 'success': success['message']}
+
     def fetch_markets(self, params={}):
         markets = self.public_get_exchange_config_controller_website_marketcontroller_getbywebid()
         result = []
         for market in markets['datas']:
-            id = market['marketId']
             name = market['name']
             [baseId, quoteId] = name.split('_')
             base = self.common_currency_code(baseId.upper())
@@ -158,7 +220,7 @@ class zbg(Exchange):
                 },
             }
             result.append({
-                'id': id,
+                'id': market['marketId'],
                 'symbol': symbol,
                 'base': base,
                 'quote': quote,
@@ -198,6 +260,112 @@ class zbg(Exchange):
 
             result[name] = account
         return self.parse_balance(result)
+
+    def fetch_order(self, id, symbol=None, params={}):
+        if symbol is None:
+            raise ExchangeError(self.id + 'fetch_order requires a symbol parameter')
+
+        self.load_markets()
+        market = self.market(symbol.upper())
+
+        request = {
+            'marketId': self.market_id(symbol),
+            'entrustId': id,
+        }
+        response = self.private_get_exchange_entrust_controller_website_entrustcontroller_getentrustbyid(self.extend(request, params))
+        return self.parse_order(response['datas'], market)
+
+    def parse_order(self, order, market=None):
+        if order is None:
+            raise ExchangeError(self.id + ' 获取订单数据为空')
+
+        timestamp = self.safe_integer(order, 'createTime')
+        iso8601 = self.iso8601(timestamp)
+
+        price = self.safe_float(order, 'price')
+        amount = self.safe_float(order, 'amount')
+        filled = self.safe_float(order, 'completeAmount')
+        average = self.safe_float(order, 'completeTotalMoney') / filled if filled > 0 else 0
+        remaining = amount - filled
+        cost = filled * price
+        status = self.parse_order_status(self.safe_integer(order, 'status'))
+        return {
+            'info': order,
+            'id': self.safe_string(order, 'entrustId'),
+            'timestamp': timestamp,
+            'datetime': iso8601,
+            'lastTradeTimestamp': None,
+            'symbol': market['symbol'] if market else self.markets_by_id[order['marketId']]['symbol'],
+            'type': type,
+            'side': 'buy' if order['type'] == 1 else 'sell',
+            'price': price,
+            'cost': cost,
+            'average': average,
+            'amount': amount,
+            'filled': filled,
+            'remaining': remaining,
+            'status': status,
+            'fee': None,
+        }
+
+    @staticmethod
+    def parse_order_status(status):
+        if status == 0 or status == 3:
+            return 'open'
+        elif status == 2:
+            return 'closed'
+        elif status == 1:
+            return 'canceled'
+        else:
+            return None
+
+    def fetch_orders(self, symbol=None, since=None, limit=50, params={}):
+        if symbol is None:
+            raise ExchangeError(self.id + 'fetch_orders requires a symbol parameter')
+
+        self.load_markets()
+        market = self.market(symbol.upper())
+        request = {
+            'marketId': market['id'],
+            'pageIndex': 1,  # default pageIndex is 1
+            'pageSize': limit,  # default pageSize is 50
+        }
+
+        if since:
+            request['startDateTime'] = since
+
+        response = self.private_get_exchange_entrust_controller_website_entrustcontroller_getuserentrustlist(self.extend(request, params))
+
+        entrust_list = response['datas']['entrustList']
+        if not entrust_list:
+            return []
+
+        return self.parse_orders(entrust_list, market, since, limit)
+
+    def fetch_open_orders(self, symbol=None, since=None, limit=20, params={}):
+        """查询未完成成交的的委托记录"""
+        if symbol is None:
+            raise ExchangeError(self.id + 'fetch_open_orders requires a symbol parameter')
+
+        self.load_markets()
+        request = {
+            'marketId': self.market_id(symbol.upper()),
+            'pageIndex': 1,  # default pageIndex is 1
+            'pageSize': limit,  # default pageSize is 20
+        }
+
+        response = self.private_get_exchange_entrust_controller_website_entrustcontroller_getuserentrustrecordfromcachewithpage(
+            self.extend(request, params))
+        entrust_list = response['datas']['entrustList']
+        if not entrust_list:
+            return []
+
+        return self.parse_orders(entrust_list, None, since, limit)
+
+    def fetch_closed_orders(self, symbol=None, since=None, limit=None, params={}):
+        """查询已经完结委托记录"""
+        params['status'] = 2
+        return self.fetch_orders(symbol, since, limit, params)
 
     def fetch_currencies(self, params={}):
         response = self.public_get_exchange_config_controller_website_currencycontroller_getcurrencylist(params)
@@ -300,6 +468,68 @@ class zbg(Exchange):
 
         return self.parse_order_book(data, timestamp)
 
+    def fetch_transactions(self, symbol=None, since=None, limit=50, params={}):
+        """
+        查询用户某个市场的成交记录
+        :param symbol: 市场名，必参
+        :param since:  查询开始时间
+        :param limit:  查询页大小， 默认20
+        :param params: 其他参数
+        :return: 交易记录
+        """
+        if symbol is None:
+            raise ExchangeError(self.id + 'fetch_transactions requires a symbol parameter')
+
+        self.load_markets()
+        request = {
+            'marketId': self.market_id(symbol.upper()),
+            'startTime': since,
+            'pageNum': 1,  # default pageNum is 1
+            'pageSize': limit,  # default pageSize is 20
+        }
+
+        response = self.private_get_exchange_activity_controller_gamecontroller_gettransactionpage(self.extend(request, params))
+        entrust_list = response['datas']['list']
+        if not entrust_list:
+            return []
+
+        return self.parse_transactions(entrust_list, None, since, limit)
+
+    def parse_transaction(self, transaction, currency=None):
+        if transaction is None:
+            raise ExchangeError(self.id + ' 获取订单数据为空')
+
+        timestamp = self.safe_integer(transaction, 'createTime')
+        iso8601 = self.iso8601(timestamp)
+
+        status = self.safe_integer(transaction, 'status')
+        if status == -2:
+            status = '卖方资金不足'
+        elif status == -1:
+            status = '买方资金不足'
+        elif status == 0:
+            status = '交易成功'
+        else:
+            status = '交易失败'
+
+        order_type = self.safe_integer(transaction, 'type')
+        if self.safe_integer(transaction, 'markerFlag') == 0:
+            order_type = order_type ^ 0
+
+        return {
+            'info': transaction,
+            'id': None,
+            'timestamp': timestamp,
+            'datetime': iso8601,
+            'symbol': self.markets_by_id[transaction['marketId']]['symbol'],
+            'type': order_type,
+            'side': 'buy' if order_type == 1 else 'sell',
+            'price': self.safe_float(transaction, 'price'),
+            'amount': self.safe_float(transaction, 'amount'),
+            'status': status,
+            'fee': self.safe_float(transaction, 'fee'),
+        }
+
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         self.load_markets()
         market = self.market(symbol.upper())
@@ -323,126 +553,6 @@ class zbg(Exchange):
             float(ohlcv[7]),  # // Close
             float(ohlcv[8]),  # // vol
         ]
-
-    def fetch_order(self, id, symbol=None, params={}):
-        if symbol is None:
-            raise ExchangeError(self.id + 'fetch_order requires a symbol parameter')
-
-        self.load_markets()
-        market = self.market(symbol.upper())
-
-        request = {
-            'marketId': self.market_id(symbol),
-            'entrustId': id,
-        }
-        response = self.private_get_exchange_entrust_controller_website_entrustcontroller_getentrustbyid(self.extend(request, params))
-        return self.parse_order(response['datas'], market)
-
-    def parse_order(self, order, market=None):
-        if order is None:
-            raise ExchangeError(self.id + ' 获取订单数据为空')
-
-        timestamp = self.safe_integer(order, 'createTime')
-        iso8601 = self.iso8601(timestamp)
-
-        price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'amount')
-        filled = self.safe_float(order, 'completeAmount')
-        average = self.safe_float(order, 'completeTotalMoney') / filled if filled > 0 else 0
-        remaining = amount - filled
-        cost = filled * price
-        status = self.parse_order_status(self.safe_integer(order, 'status'))
-        return {
-            'info': order,
-            'id': self.safe_string(order, 'entrustId'),
-            'timestamp': timestamp,
-            'datetime': iso8601,
-            'lastTradeTimestamp': None,
-            'symbol': market['symbol'] if market else self.markets_by_id[order['marketId']]['name'],
-            'type': type,
-            'side': 'buy' if order['type'] == 1 else 'sell',
-            'price': price,
-            'cost': cost,
-            'average': average,
-            'amount': amount,
-            'filled': filled,
-            'remaining': remaining,
-            'status': status,
-            'fee': None,
-        }
-
-    @staticmethod
-    def parse_order_status(status):
-        if status == 0 or status == 3:
-            return 'open'
-        elif status == 2:
-            return 'closed'
-        elif status == 1:
-            return 'canceled'
-        else:
-            return None
-
-    def fetch_orders(self, symbol=None, since=None, limit=50, params={}):
-        if symbol is None:
-            raise ExchangeError(self.id + 'fetch_orders requires a symbol parameter')
-
-        self.load_markets()
-        market = self.market(symbol.upper())
-        request = {
-            'marketId': market['id'],
-            'pageIndex': 1,  # default pageIndex is 1
-            'pageSize': limit,  # default pageSize is 50
-        }
-
-        if since:
-            request['startDateTime'] = since
-
-        response = self.private_get_exchange_entrust_controller_website_entrustcontroller_getuserentrustlist(self.extend(request, params))
-
-        entrust_list = response['datas']['entrustList']
-        if not entrust_list:
-            return []
-
-        return self.parse_orders(entrust_list, market, since, limit)
-
-    def create_order(self, symbol, type, side, amount, price=None, params={}):
-        self.load_markets()
-
-        request = {
-            'marketId': self.market_id(symbol.upper()),
-            'price': price,
-            'amount': amount,
-            'rangeType': 0,
-            'type': 1 if 'buy' == side else 0,
-        }
-
-        response = self.private_post_exchange_entrust_controller_website_entrustcontroller_addentrust(self.extend(request, params))
-        data = response['datas']
-        return {
-            'info': response,
-            'id': self.safe_string(data, 'entrustId'),
-            'price': price,
-            'amount': amount,
-            'side': 1 if side == 'buy' else 0,
-        }
-
-    def cancel_order(self, id, symbol=None, params={}):
-        """
-            取消订单，zbg取消订单，marketId是必须传的，所以symbol不能为空
-        """
-        if symbol is None:
-            raise ExchangeError(self.id + 'cancel_order requires a symbol parameter')
-
-        self.load_markets()
-        request = {
-            'entrustId': id,
-            'marketId':self.market_id(symbol.upper()),
-        }
-
-        results = self.private_post_exchange_entrust_controller_website_entrustcontroller_cancelentrust(self.extend(request, params))
-        success = results['resMsg']
-        returnVal = {'info': results, 'success': success['message']}
-        return returnVal
 
     def get_user_entrust_from_cache(self, symbol):
         """

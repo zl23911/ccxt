@@ -1,66 +1,105 @@
 import time
-import pandas as pd
+import unittest
 import ccxt
 
-if __name__ == '__main__':
 
+class TestZbg(unittest.TestCase):
+    test_market_name = 'ZT/USDT'
+    test_market_id = '80'
+    test_currency_name = 'BTC'
     zbg = ccxt.zbg()
-    # zbg.apiKey = '7ljSc36ADq47ljSc36ADq5'
-    # zbg.secret = '7d939853803e90978fb3e52be744d19d'
-    zbg.apiKey = '7hGKPJ0uLAW7hGKPJ0uLAX'
-    zbg.secret = 'a1bb47715b7727715e5a1dc90788a436'
+    zbg.apiKey = '7ljSc36ADq47ljSc36ADq5'
+    zbg.secret = '7d939853803e90978fb3e52be744d19d'
 
-    # print(zbg.fetch_markets())
+    # def test_create_order(self):
+    #     result = self.zbg.create_order(self.test_market_name, '', 'buy', 1, 0.6)
+    #
+    #     print('\n' + 'test_create_order:')
+    #     print(result)
+    #
+    #     assert result['id'] is not None
 
-    # print(zbg.fetch_balance())
+    def test_cancel_order(self):
+        time.sleep(1)
+        result = self.zbg.create_order(self.test_market_name, '', 'buy', 1, 0.6)
 
-    # print(zbg.fetch_ticker(symbol='btc/usdt'))
+        time.sleep(1)
+        result = self.zbg.cancel_order(result['id'], self.test_market_name)
 
-    # print(zbg.fetch_trades(symbol='btc/usdt'))
+        print('\n' + 'test_cancel_order:')
+        print(result)
 
-    # print(zbg.fetch_order_book(symbol='btc/usdt'))
+    def test_cancel_orders(self):
+        time.sleep(1)
+        result = self.zbg.create_order(self.test_market_name, '', 'buy', 1, 0.6)
+        time.sleep(1)
+        result2 = self.zbg.create_order(self.test_market_name, '', 'sell', 1, 0.7)
+        time.sleep(1)
+        result3 = self.zbg.create_order(self.test_market_name, '', 'buy', 1, 0.5)
 
-    # print(zbg.fetch_ohlcv(symbol='btc/usdt', timeframe='1h'))
+        time.sleep(1)
+        result = self.zbg.cancel_orders(self.test_market_name, result['id'], result2['id'], result3['id'])
 
-    # print(zbg.fetch_order(id='E6518698817490001920', symbol='ZT/USDT'))
-    # print(zbg.fetch_order(id='E6518698817490001920', symbol='ZT/USDT'))
+        print('\n' + 'test_cancel_orders:')
+        print(result)
 
-    print(zbg.get_user_entrust_from_cache_with_page("ZT/USDT", page_size=2))
+    def test_fetch_markets(self):
+        result = self.zbg.fetch_markets()
 
-    # print(zbg.fetch_orders(symbol='ZT/USDT', since=1548415379921))
+        print('\n' + 'test_fetch_markets:')
+        print(result)
 
-    # add_result = zbg.create_order("DAG/ZT", '', 'buy', 1, 0.098, {'magnification': 100})
-    # add_result = zbg.create_order("ZT/USDT", '', 'buy', 1000, 0.093, {'magnification': 0.1})
+    def test_fetch_balance(self):
+        result = self.zbg.fetch_balance(self.test_market_name)
 
-    # print(add_result)
-    # time.sleep(1)
-    # print(zbg.cancel_order(add_result['id'], "ZT/USDT"))
+        print('\n' + 'test_fetch_balance:')
+        print(result)
 
-    # print(zbg.cancel_order('E6521346130393964544', "ZT/USDT"))
+    def test_fetch_order(self):
+        time.sleep(1)
+        result = self.zbg.create_order(self.test_market_name, '', 'buy', 1, 0.6)
+
+        time.sleep(1)
+
+        result = self.zbg.fetch_order(result['id'], self.test_market_name)
+
+        print('\n' + 'test_fetch_order:')
+        print(result)
+
+    def test_fetch_orders(self):
+        result = self.zbg.fetch_orders(self.test_market_name, limit=2)
+
+        print('\n' + 'test_fetch_orders:')
+        print(result)
+
+        result = self.zbg.fetch_orders(self.test_market_name, limit=2, params={'pageIndex': 2})
+
+        print('\n' + 'test_fetch_orders page 2:')
+        print(result)
+
+    def test_fetch_open_orders(self):
+        result = self.zbg.fetch_open_orders(self.test_market_name, limit=2)
+
+        print('\n' + 'fetch_open_orders:')
+        print(result)
+
+        result = self.zbg.fetch_open_orders(self.test_market_name, limit=2, params={'pageIndex': 2})
+
+        print('\n' + 'fetch_open_orders page 2:')
+        print(result)
+
+    def test_fetch_trades(self):
+        result = self.zbg.fetch_trades(self.test_market_name, limit=20)
+
+        print('\n' + 'test_fetch_trades:')
+        print(result)
+
+    def test_fetch_transactions(self):
+        result = self.zbg.fetch_transactions(self.test_market_name, limit=20)
+
+        print('\n' + 'test_fetch_transactions:')
+        print(result)
 
 
-    # 请求的candles个数
-    limit = 500
-
-    #  当前时间
-    current_time = int(time.time() // 60 * 60 * 1000)  # 毫秒
-    print(current_time)
-
-    # 获取请求开始的时间
-    since_time = current_time - limit * 60 * 1000
-
-    #  'BTC/USD' 比特币对美元的交易对，或者ETH/USD 以太坊对美元的交易对.
-    data = zbg.fetch_ohlcv(symbol='BTC/USDT', limit=500, since=None)
-    print(data)
-    df = pd.DataFrame(data)
-    df = df.rename(columns={0: 'open_time', 1: 'open', 2: 'high', 3: 'low', 4: 'close', 5: 'volume'})
-
-    # 时间转换成北京时间
-    df['open_time'] = pd.to_datetime(df['open_time'], unit='ms') + pd.Timedelta(hours=8)
-
-    # 设置index
-    df = df.set_index('open_time', drop=True)
-
-    # 保存成csv文件
-    df.to_csv('bitmex_data.csv')  # comma seperate Value
-    print(df)
+if __name__ == '__main__':
+    unittest.main()
