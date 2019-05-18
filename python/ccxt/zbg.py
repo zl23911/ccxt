@@ -295,7 +295,7 @@ class zbg(Exchange):
             'timestamp': timestamp,
             'datetime': iso8601,
             'lastTradeTimestamp': None,
-            'symbol': market['symbol'] if market else self.markets_by_id[order['marketId']]['symbol'],
+            'symbol': market['symbol'] if market else self.get_symbol(order),
             'type': type,
             'side': 'buy' if order['type'] == 1 else 'sell',
             'price': price,
@@ -521,7 +521,7 @@ class zbg(Exchange):
             'id': None,
             'timestamp': timestamp,
             'datetime': iso8601,
-            'symbol': self.markets_by_id[transaction['marketId']]['symbol'],
+            'symbol': self.get_symbol(transaction),
             'type': order_type,
             'side': 'buy' if order_type == 1 else 'sell',
             'price': self.safe_float(transaction, 'price'),
@@ -626,3 +626,7 @@ class zbg(Exchange):
                     raise ExceptionClass(feedback)
                 elif code != '1':
                     raise ExchangeError(feedback)
+
+    def get_symbol(self, record):
+        key = record["marketId"] if record["marketId"] in self.markets_by_id.keys() else record["originalMarketId"]
+        return self.markets_by_id[key]
