@@ -242,7 +242,6 @@ class zbg(Exchange):
         }
 
         response = self.private_post_exchange_fund_controller_website_fundcontroller_findbypage(self.extend(params, request))
-        print(response)
         balances = response['datas']['list']
         result = {'info': response}
         for balance in balances:
@@ -352,6 +351,7 @@ class zbg(Exchange):
             'marketId': self.market_id(symbol.upper()),
             'pageIndex': 1,  # default pageIndex is 1
             'pageSize': limit,  # default pageSize is 20
+            'entrustType': 0,  # 委托单类型 0 普通委托单 1 杠杆委托单
         }
 
         response = self.private_get_exchange_entrust_controller_website_entrustcontroller_getuserentrustrecordfromcachewithpage(
