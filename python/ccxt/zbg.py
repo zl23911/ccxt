@@ -7,7 +7,7 @@ import math
 
 from ccxt.base.exchange import Exchange
 
-from ccxt.base.errors import ExchangeError
+from ccxt.base.errors import ExchangeError, ArgumentsRequired
 from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import OrderNotFound
 
@@ -21,21 +21,23 @@ class zbg(Exchange):
             'rateLimit': 2000,
             'version': 'v1',
             'has': {
-                'fetchBalance': True,
-                'fetchMarkets': True,
-                'createOrder': True,
-                'cancelOrder': True,
-                'fetchTicker': True,
-                'fetchTrades': True,
-                'fetchOHLCV': True,
-                'fetchOrder': True,
-                'fetchOrders': True,
-                'fetchCurrencies': True,
-                'cancelOrders': True,
-                'fetchClosedOrders': True,
-                'fetchOpenOrders': True,
-                'fetchOrderBook': True,
-                'fetchTickers': True,
+                'fetchBalance': True,  # 获取用户资产
+                'fetchMarkets': True,  # 获取市场交易对
+                'createOrder': True,  # 创建委托订单
+                'cancelOrder': True,  # 取消委托订单
+                'cancelOrders': True,  # 批量取消用户委托
+                'fetchClosedOrders': True,  # 获取用户交易完成委托订单记录
+                'fetchOpenOrders': True,  # 获取用户正在交易委托订单记录
+                'fetchTicker': True,  # 获取单个市场24H市场行情
+                'fetchTickers': True,  # 获取所有市场24H市场行情
+                'fetchTrades': True,  # 获取市场交易记录
+                'fetchMyTrades': True,  # 获取用户交易记录
+                'fetchOHLCV': True,  # 获取市场k线
+                'fetchOrder': True,  # 获取用户单个委托订单记录
+                'fetchOrders': True,  # 获取用户委托订单记录
+                'fetchCurrencies': True,  # 获取币种列表
+                'fetchOrderBook': True,  # 获取市场深度
+                'fetchDepositAddress': True,  # 获取充币地址
             },
             'timeframes': {
                 '1m': '1min',
@@ -47,6 +49,10 @@ class zbg(Exchange):
                 '1w': '1week',
             },
             'exceptions': {
+                '6096': ArgumentsRequired,
+                '1003': ArgumentsRequired,
+                '2000': ArgumentsRequired,
+                '6000': ArgumentsRequired,
                 '2012': OrderNotFound,
                 '2014': OrderNotFound,
                 '2015': OrderNotFound,
@@ -72,6 +78,7 @@ class zbg(Exchange):
                         'exchange/config/controller/website/marketcontroller/getByWebId',
                         'exchange/config/controller/website/currencycontroller/getCurrencyList',
                         'api/data/v1/ticker',
+                        'api/data/v1/tickers',
                         'api/data/v1/entrusts',
                         'api/data/v1/trades',
                         'api/data/v1/klines',
@@ -84,13 +91,14 @@ class zbg(Exchange):
                         'exchange/entrust/controller/website/EntrustController/batchCancelEntrustByMarketId',
                         'exchange/entrust/controller/website/entrustcontroller/getuserentrustrecordfromcache',
                         'exchange/entrust/controller/website/entrustcontroller/getuserentrustrecordfromcachewithpage',
-                        'exchange/activity/controller/gamecontroller/gettransactionpage',
+                        'exchange/entrust/controller/website/entrustcontroller/gettransactionpage',
                     ],
                     'post': [
                         'exchange/fund/controller/website/fundcontroller/findbypage',
                         'exchange/entrust/controller/website/EntrustController/addEntrust',
                         'exchange/entrust/controller/website/EntrustController/cancelEntrust',
                         'exchange/entrust/controller/website/entrustcontroller/batchcancelentrust',
+                        'exchange/fund/controller/website/fundcontroller/getPayinAddress',
                     ],
                 },
             },
@@ -134,6 +142,92 @@ class zbg(Exchange):
                 'ENT': 'ENTCash',
             },
         })
+
+    def fetch_currencies(self, params={}):
+        response = self.public_get_exchange_config_controller_website_currencycontroller_getcurrencylist(params)
+
+        result = {}
+        currencies = response['datas']
+        for currency in currencies:
+            id = str(currency['currencyId'])
+            name = currency['name']
+            code = self.common_currency_code(id)
+            result[code] = {
+                'id': id,
+                'code': code,
+                'info': currency,
+                'name': name.upper(),
+            }
+        return result
+
+    def fetch_markets(self, params={}):
+        markets = self.public_get_exchange_config_controller_website_marketcontroller_getbywebid()
+        result = []
+        for market in markets['datas']:
+            name = market['name']
+            [baseId, quoteId] = name.split('_')
+            base = self.common_currency_code(baseId.upper())
+            quote = self.common_currency_code(quoteId.upper())
+            symbol = base + '/' + quote
+            active = market['state'] == 1
+            precision = {
+                'amount': market['amountDecimal'],
+                'price': market['priceDecimal'],
+            }
+            limits = {
+                'amount': {
+                    'min': self.safe_float(market, 'minAmount'),
+                    'max': None,
+                },
+                'price': {
+                    'min': None,
+                    'max': None,
+                },
+                'cost': {
+                    'min': None,
+                    'max': None,
+                },
+            }
+            result.append({
+                'id': market['marketId'],
+                'symbol': symbol,
+                'base': base,
+                'quote': quote,
+                'baseId': baseId,
+                'quoteId': quoteId,
+                'active': active,
+                'precision': precision,
+                'limits': limits,
+                'info': market,
+            })
+        return result
+
+    def fetch_balance(self, page_size=200, page_num=1, params={}):
+        self.load_markets()
+
+        request = {
+            'pageSize': page_size,
+            'pageNum': page_num,
+        }
+
+        response = self.private_post_exchange_fund_controller_website_fundcontroller_findbypage(self.extend(params, request))
+        balances = response['datas']['list']
+        result = {'info': response}
+        for balance in balances:
+            account = self.account()
+            currencyId = str(balance['currencyTypeId'])
+
+            if currencyId in self.currencies_by_id:
+                name = self.currencies_by_id[currencyId]['name']
+            else:
+                name = self.common_currency_code(currencyId)
+
+            account['free'] = float(balance['amount'])
+            account['used'] = float(balance['freeze'])
+            account['total'] = self.sum(account['free'], account['used'])
+
+            result[name] = account
+        return self.parse_balance(result)
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         self.load_markets()
@@ -191,75 +285,6 @@ class zbg(Exchange):
         success = results['resMsg']
         return {'info': results, 'success': success['message']}
 
-    def fetch_markets(self, params={}):
-        markets = self.public_get_exchange_config_controller_website_marketcontroller_getbywebid()
-        result = []
-        for market in markets['datas']:
-            name = market['name']
-            [baseId, quoteId] = name.split('_')
-            base = self.common_currency_code(baseId.upper())
-            quote = self.common_currency_code(quoteId.upper())
-            symbol = base + '/' + quote
-            active = market['state'] == 1
-            precision = {
-                'amount': market['amountDecimal'],
-                'price': market['priceDecimal'],
-            }
-            limits = {
-                'amount': {
-                    'min': math.pow(10, -precision['amount']),
-                    'max': None,
-                },
-                'price': {
-                    'min': None,
-                    'max': None,
-                },
-                'cost': {
-                    'min': None,
-                    'max': None,
-                },
-            }
-            result.append({
-                'id': market['marketId'],
-                'symbol': symbol,
-                'base': base,
-                'quote': quote,
-                'baseId': baseId,
-                'quoteId': quoteId,
-                'active': active,
-                'precision': precision,
-                'limits': limits,
-                'info': market,
-            })
-        return result
-
-    def fetch_balance(self, page_size=200, page_num=1, params={}):
-        self.load_markets()
-
-        request = {
-            'pageSize': page_size,
-            'pageNum': page_num,
-        }
-
-        response = self.private_post_exchange_fund_controller_website_fundcontroller_findbypage(self.extend(params, request))
-        balances = response['datas']['list']
-        result = {'info': response}
-        for balance in balances:
-            account = self.account()
-            currencyId = str(balance['currencyTypeId'])
-
-            if currencyId in self.currencies_by_id:
-                name = self.currencies_by_id[currencyId]['name']
-            else:
-                name = self.common_currency_code(currencyId)
-
-            account['free'] = float(balance['amount'])
-            account['used'] = float(balance['freeze'])
-            account['total'] = self.sum(account['free'], account['used'])
-
-            result[name] = account
-        return self.parse_balance(result)
-
     def fetch_order(self, id, symbol=None, params={}):
         if symbol is None:
             raise ExchangeError(self.id + 'fetch_order requires a symbol parameter')
@@ -291,19 +316,20 @@ class zbg(Exchange):
         return {
             'info': order,
             'id': self.safe_string(order, 'entrustId'),
-            'timestamp': timestamp,
             'datetime': iso8601,
-            'lastTradeTimestamp': None,
+            'timestamp': timestamp,
+            'lastTradeTimestamp': timestamp,
+            'status': status,
             'symbol': market['symbol'] if market else self.get_symbol(order),
-            'type': type,
+            'type': None,
             'side': 'buy' if order['type'] == 1 else 'sell',
             'price': price,
-            'cost': cost,
-            'average': average,
             'amount': amount,
             'filled': filled,
             'remaining': remaining,
-            'status': status,
+            'cost': cost,
+            'average': average,
+            'trades': None,
             'fee': None,
         }
 
@@ -367,32 +393,95 @@ class zbg(Exchange):
         params['status'] = 2
         return self.fetch_orders(symbol, since, limit, params)
 
-    def fetch_currencies(self, params={}):
-        response = self.public_get_exchange_config_controller_website_currencycontroller_getcurrencylist(params)
+    def fetch_my_trades(self, symbol=None, since=None, limit=50, params={}):
+        """
+        查询用户某个市场的成交记录
+        """
+        if symbol is None:
+            raise ExchangeError(self.id + 'fetch_my_trades requires a symbol parameter')
 
-        result = {}
-        currencies = response['datas']
-        for currency in currencies:
-            id = str(currency['currencyId'])
-            name = currency['name']
-            code = self.common_currency_code(id)
-            result[code] = {
-                'id': id,
-                'code': code,
-                'info': currency,
-                'name': name.upper(),
+        self.load_markets()
+        market = self.market(symbol.upper())
+        request = {
+            'marketId': market['id'],
+            'pageNum': 1,  # default pageNum is 1
+            'pageSize': limit,  # default pageSize is 20
+        }
+
+        if since:
+            request['startTime'] = since
+
+        response = self.private_get_exchange_entrust_controller_website_entrustcontroller_gettransactionpage(self.extend(request, params))
+        entrust_list = response['datas']['list']
+        print(entrust_list)
+        return self._parse_my_trades(entrust_list, market, since, limit)
+
+    def _parse_my_trades(self, trades, market=None, since=None, limit=None):
+        array = self.to_array(trades)
+        array = [self._parse_my_trade(trade, market) for trade in array]
+        array = self.sort_by(array, 'timestamp')
+        symbol = market['symbol'] if market else None
+        return self.filter_by_symbol_since_limit(array, symbol, since, limit)
+
+    def _parse_my_trade(self, trade, market=None):
+        if trade is None:
+            raise ExchangeError(self.id + ' 获取订单数据为空')
+
+        timestamp = self.safe_integer(trade, 'createTime')
+
+        symbol = market['symbol'] if market else self.get_symbol(trade)
+        order_type = self.safe_integer(trade, 'type')
+        currency = symbol.split('/')[0] if order_type == 1 else symbol.split('/')[1]
+
+        return {
+            'info': trade,
+            'id': trade['transrecordId'],
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'symbol': symbol,
+            'order': trade['entrustId'] if 'entrustId' in trade.keys() else None,
+            'type': None,
+            'side': 'buy' if order_type == 1 else 'sell',
+            'takerOrMaker': 'maker' if trade['markerFlag'] else 'taker',
+            'price': self.safe_float(trade, 'price'),
+            'amount': self.safe_float(trade, 'amount'),
+            'cost': self.safe_float(trade, 'totalPrice'),
+            'fee': {
+                'cost': self.safe_float(trade, 'fee'),
+                'currency': currency,
+                'rate': None,
             }
-        return result
+        }
 
     def fetch_ticker(self, symbol, params={}):
         self.load_markets()
-        market = self.markets[symbol.upper()]
+
         request = {
-            'marketId': market['id'],
+            'marketId': self.market_id(symbol.upper()),
         }
 
         response = self.public_get_api_data_v1_ticker(self.extend(request, params))
         data = response['datas']
+
+        return self._parse_ticker(data, symbol)
+
+    def fetch_tickers(self, symbols=None, params={}):
+        """所有市场24H市场行情，目前暂不支持特定多个币种的查询"""
+
+        self.load_markets()
+        if symbols:
+            raise ExchangeError(self.id + 'fetch_tickers does not support the "symbols" parameter')
+
+        request = {
+            'isUseMarketName': True,  # 必传，选择true则返回的结果中用BTC_USDT这样的市场名替代掉marketId,false则使用marketId
+        }
+
+        response = self.public_get_api_data_v1_tickers(self.extend(request, params))
+        datas = response['datas']
+        tickers = [self._parse_ticker(data, symbol.replace('_', '/')) for symbol, data in datas.items()]
+        return self.to_array(tickers)
+
+    def _parse_ticker(self, data, symbol):
         timestamp = self.milliseconds()
 
         return {
@@ -415,10 +504,11 @@ class zbg(Exchange):
             'average': None,
             'baseVolume': data[4],
             'quoteVolume': None,
-            'info': response,
+            'info': data,
         }
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
+        """查询市场交易记录"""
         self.load_markets()
 
         market = self.markets[symbol.upper()]
@@ -459,76 +549,15 @@ class zbg(Exchange):
         request = {
             'marketId': marketId,
         }
+
         if limit:
-            request['size'] = limit
+            request['dataSize'] = limit
 
         response = self.public_get_api_data_v1_entrusts(self.extend(request, params))
         data = response['datas']
         timestamp = data['timestamp']
 
         return self.parse_order_book(data, timestamp)
-
-    def fetch_transactions(self, symbol=None, since=None, limit=50, params={}):
-        """
-        查询用户某个市场的成交记录
-        :param symbol: 市场名，必参
-        :param since:  查询开始时间
-        :param limit:  查询页大小， 默认20
-        :param params: 其他参数
-        :return: 交易记录
-        """
-        if symbol is None:
-            raise ExchangeError(self.id + 'fetch_transactions requires a symbol parameter')
-
-        self.load_markets()
-        request = {
-            'marketId': self.market_id(symbol.upper()),
-            'startTime': since,
-            'pageNum': 1,  # default pageNum is 1
-            'pageSize': limit,  # default pageSize is 20
-        }
-
-        response = self.private_get_exchange_activity_controller_gamecontroller_gettransactionpage(self.extend(request, params))
-        entrust_list = response['datas']['list']
-        if not entrust_list:
-            return []
-
-        return self.parse_transactions(entrust_list, None, since, limit)
-
-    def parse_transaction(self, transaction, currency=None):
-        if transaction is None:
-            raise ExchangeError(self.id + ' 获取订单数据为空')
-
-        timestamp = self.safe_integer(transaction, 'createTime')
-        iso8601 = self.iso8601(timestamp)
-
-        status = self.safe_integer(transaction, 'status')
-        if status == -2:
-            status = '卖方资金不足'
-        elif status == -1:
-            status = '买方资金不足'
-        elif status == 0:
-            status = '交易成功'
-        else:
-            status = '交易失败'
-
-        order_type = self.safe_integer(transaction, 'type')
-        if self.safe_integer(transaction, 'markerFlag') == 0:
-            order_type = order_type ^ 0
-
-        return {
-            'info': transaction,
-            'id': None,
-            'timestamp': timestamp,
-            'datetime': iso8601,
-            'symbol': self.get_symbol(transaction),
-            'type': order_type,
-            'side': 'buy' if order_type == 1 else 'sell',
-            'price': self.safe_float(transaction, 'price'),
-            'amount': self.safe_float(transaction, 'amount'),
-            'status': status,
-            'fee': self.safe_float(transaction, 'fee'),
-        }
 
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         self.load_markets()
@@ -554,35 +583,23 @@ class zbg(Exchange):
             float(ohlcv[8]),  # // vol
         ]
 
-    def get_user_entrust_from_cache(self, symbol):
-        """
-            查询用户正在委托的记录，默认返回20跳数据
-        """
-        if symbol is None:
-            raise ExchangeError(self.id + 'get_user_enturst_from_cache requires a symbol parameter')
-
+    def fetch_deposit_address(self, code, params={}):
         self.load_markets()
-        params = {
-            'marketId': self.market_id(symbol.upper()),
+        request = {
+            'currencyTypeName': code
         }
 
-        return self.private_get_exchange_entrust_controller_website_entrustcontroller_getuserentrustrecordfromcache(params)
-
-    def get_user_entrust_from_cache_with_page(self, symbol, page_size=20, page_num=1):
-        """
-            查询用户正在委托的记录
-        """
-        if symbol is None:
-            raise ExchangeError(self.id + 'get_user_enturst_from_cache requires a symbol parameter')
-
-        self.load_markets()
-        params = {
-            'marketId': self.market_id(symbol.upper()),
-            'pageIndex': page_num,
-            'pageSize': page_size,
+        response = self.private_post_exchange_fund_controller_website_fundcontroller_getpayinaddress(self.extend(request, params))
+        data = response['datas']
+        address = self.safe_string(data, 'address')
+        tag = self.safe_string(data, 'memo')
+        self.check_address(address)
+        return {
+            'currency': code,
+            'address': address,
+            'tag': tag,
+            'info': response,
         }
-
-        return self.private_get_exchange_entrust_controller_website_entrustcontroller_getuserentrustrecordfromcachewithpage(params)
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         if api == 'public':
@@ -629,4 +646,4 @@ class zbg(Exchange):
 
     def get_symbol(self, record):
         key = record["marketId"] if record["marketId"] in self.markets_by_id.keys() else record["originalMarketId"]
-        return self.markets_by_id[key]
+        return self.markets_by_id[key]['symbol']
