@@ -4,12 +4,12 @@ import ccxt
 
 
 class TestZbg(unittest.TestCase):
-    test_market_name = 'ZT/USDT'
-    test_market_id = '80'
+    test_market_name = 'ETH/KRW'
+    test_market_id = '92'
     test_currency_name = 'BTC'
     zbg = ccxt.zbg()
-    zbg.apiKey = ''
-    zbg.secret = ''
+    zbg.apiKey = '7ljSc36ADq47ljSc36ADq5'
+    zbg.secret = '7d939853803e90978fb3e52be744d19d'
 
     def test_create_order(self):
         result = self.zbg.create_order(self.test_market_name, '', 'buy', 1, 0.6)
@@ -124,11 +124,41 @@ class TestZbg(unittest.TestCase):
         print('\n' + 'test_fetch_deposit_address:')
         print(result)
 
+    def test_fetch_deposits(self):
+        result = self.zbg.fetch_deposits('ZT', limit=1, params={'pageNum': 2})
+
+        print('\n' + 'test_fetch_deposits:')
+        print(result)
+
+    def test_fetch_withdraw_address(self):
+        result = self.zbg.fetch_withdraw_address('QC')
+
+        print('\n' + 'test_fetch_withdraw_address:')
+        print(result)
+
+    def test_fetch_withdrawals(self):
+        result = self.zbg.fetch_withdrawals('QC', limit=1, params={'pageNum': 1})
+
+        print('\n' + 'test_fetch_withdrawals:')
+        print(result)
+
+    def test_withdraw(self):
+        result = self.zbg.withdraw('QC', 100, '1DkwrD4bMtjd6kcZw8CxM9r3z4AGVFfSRz')
+
+        print('\n' + 'test_withdraw:')
+        print(result)
+
+    def test_cancel_withdraw(self):
+        result = self.zbg.cancel_withdraw("W6548806224505630720")
+
+        print('\n' + 'test_cancel_withdraw:')
+        print(result)
+
 
 if __name__ == '__main__':
     # unittest.main()
     suite = unittest.TestSuite()
-    suite.addTest(TestZbg('test_load_accounts'))
+    suite.addTest(TestZbg('test_cancel_withdraw'))
 
     runner = unittest.TextTestRunner()
     runner.run(suite)
