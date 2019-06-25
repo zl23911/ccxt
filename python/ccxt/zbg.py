@@ -37,6 +37,7 @@ class zbg(Exchange):
                 'fetchOrders': True,  # 获取用户委托订单记录
                 'fetchCurrencies': True,  # 获取币种列表
                 'fetchOrderBook': True,  # 获取市场深度
+                'checkDepositAddress': True,  # 检验充币地址是否是本平台地址
                 'fetchDepositAddress': True,  # 获取充币地址
                 'fetchDeposits': True,  # 获取充币记录
                 'fetchWithdrawals': True,  # 获取提币记录
@@ -100,6 +101,7 @@ class zbg(Exchange):
                         'exchange/fund/controller/website/fundwebsitecontroller/getpayoutcoinrecord',
                         'exchange/fund/controller/website/fundwebsitecontroller/getwithdrawaddress',
                         'exchange/fund/controller/website/fundwebsitecontroller/docancelpayout',
+                        'exchange/fund/controller/website/fundcontroller/checkdepositaddress',
                     ],
                     'post': [
                         'exchange/fund/controller/website/fundcontroller/findbypage',
@@ -592,6 +594,22 @@ class zbg(Exchange):
             float(ohlcv[7]),  # // Close
             float(ohlcv[8]),  # // vol
         ]
+
+    def check_deposit_address(self, code, address, params={}):
+        self.load_markets()
+
+        request = {
+            'currencyName': code,
+            'address': address
+        }
+
+        response = self.private_get_exchange_fund_controller_website_fundcontroller_checkdepositaddress(self.extend(request, params))
+        data = response['datas']
+
+        return {
+            'success': bool(data),
+            'info': response,
+        }
 
     def fetch_deposit_address(self, code, params={}):
         self.load_markets()

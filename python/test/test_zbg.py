@@ -118,6 +118,12 @@ class TestZbg(unittest.TestCase):
         print('\n' + 'test_fetch_order_book:')
         print(result)
 
+    def test_check_deposit_address(self):
+        result = self.zbg.check_deposit_address('EOS', "1DkwrD4bMtjd6kcZw8CxM9r3z4AGVFfSRz")
+
+        print('\n' + 'test_check_deposit_address:')
+        print(result)
+
     def test_fetch_deposit_address(self):
         result = self.zbg.fetch_deposit_address('EOS')
 
@@ -158,7 +164,7 @@ class TestZbg(unittest.TestCase):
 if __name__ == '__main__':
     # unittest.main()
     suite = unittest.TestSuite()
-    suite.addTest(TestZbg('test_cancel_withdraw'))
+    suite.addTest(TestZbg('test_check_deposit_address'))
 
     runner = unittest.TextTestRunner()
     runner.run(suite)
