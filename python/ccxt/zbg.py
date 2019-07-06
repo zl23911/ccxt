@@ -111,6 +111,7 @@ class zbg(Exchange):
                         'exchange/fund/controller/website/fundcontroller/getpayinaddress',
                         'exchange/fund/controller/website/fundcontroller/getpayincoinrecord',
                         'exchange/fund/controller/website/fundwebsitecontroller/dopayoutcoin',
+
                     ],
                 },
             },
@@ -421,11 +422,10 @@ class zbg(Exchange):
         }
 
         if since:
-            request['startTime'] = since
+            request['minTime'] = since
 
         response = self.private_get_exchange_entrust_controller_website_entrustcontroller_gettransactionpage(self.extend(request, params))
         entrust_list = response['datas']['list']
-        print(entrust_list)
         return self._parse_my_trades(entrust_list, market, since, limit)
 
     def _parse_my_trades(self, trades, market=None, since=None, limit=None):
