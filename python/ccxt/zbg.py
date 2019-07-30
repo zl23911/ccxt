@@ -94,7 +94,6 @@ class zbg(Exchange):
                     'get': [
                         'exchange/entrust/controller/website/EntrustController/getEntrustById',
                         'exchange/entrust/controller/website/EntrustController/getUserEntrustList',
-                        'exchange/entrust/controller/website/EntrustController/batchCancelEntrustByMarketId',
                         'exchange/entrust/controller/website/entrustcontroller/getuserentrustrecordfromcache',
                         'exchange/entrust/controller/website/entrustcontroller/getuserentrustrecordfromcachewithpage',
                         'exchange/entrust/controller/website/entrustcontroller/gettransactionpage',
@@ -107,7 +106,7 @@ class zbg(Exchange):
                         'exchange/fund/controller/website/fundcontroller/findbypage',
                         'exchange/entrust/controller/website/EntrustController/addEntrust',
                         'exchange/entrust/controller/website/EntrustController/cancelEntrust',
-                        'exchange/entrust/controller/website/entrustcontroller/batchcancelentrust',
+                        'exchange/entrust/controller/website/entrustcontroller/cancelentrustmore',
                         'exchange/fund/controller/website/fundcontroller/getpayinaddress',
                         'exchange/fund/controller/website/fundcontroller/getpayincoinrecord',
                         'exchange/fund/controller/website/fundwebsitecontroller/dopayoutcoin',
@@ -281,9 +280,14 @@ class zbg(Exchange):
         returnVal = {'info': results, 'success': success['message']}
         return returnVal
 
-    def cancel_orders(self, symbol, *entrust_ids):
+    def cancel_orders(self, symbol, *entrust_ids, params={}):
         """
             批量取消订单，zbg取消订单，marketId是必须传的，所以symbol不能为空
+            @:param symbol 交易对名，必传
+            @:param entrustIds 委托单号，可传多个，可选
+            @:param type 买卖类型，0 卖出 1 购买，可选
+            @:param priceFrom 委托价格区间取消：取消单价>=priceFrom的委托，可选
+            @:param priceTo 委托价格区间取消：取消单价<=priceTo的委托，可选
         """
         if symbol is None:
             raise ExchangeError(self.id + 'cancel_orders requires a symbol parameter')
@@ -294,7 +298,7 @@ class zbg(Exchange):
             'marketId': self.market_id(symbol.upper()),
         }
 
-        results = self.private_post_exchange_entrust_controller_website_entrustcontroller_batchcancelentrust(request)
+        results = self.private_post_exchange_entrust_controller_website_entrustcontroller_cancelentrustmore(self.extend(request, params))
         success = results['resMsg']
         return {'info': results, 'success': success['message']}
 
