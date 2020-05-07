@@ -457,6 +457,7 @@ declare module 'ccxt' {
     export class yunbi extends acx {}
     export class zaif extends Exchange {}
     export class zb extends Exchange {}
+    export class zbg extends Exchange {}
 
     /* tslint:enable */
 
